@@ -1,47 +1,42 @@
 import { useEffect, useRef, useCallback } from 'react';
+import { io } from 'socket.io-client';
 
-const WS_URL = 'wss://lumabackend.up.railway.app';
+const SERVER_URL = 'https://lumabackend.up.railway.app';
 
 export function useSocket(onMessage) {
-  const wsRef = useRef(null);
+  const socketRef = useRef(null);
   const onMessageRef = useRef(onMessage);
   onMessageRef.current = onMessage;
 
   useEffect(() => {
-    let reconnectTimer = null;
+    const socket = io(SERVER_URL, {
+      transports: ['websocket', 'polling'],
+      reconnectionAttempts: 10,
+      reconnectionDelay: 1000,
+    });
 
-    const connect = () => {
-      console.log('[Luma] Connecting to', WS_URL);
-      const ws = new WebSocket(WS_URL);
-      wsRef.current = ws;
+    socketRef.current = socket;
 
-      ws.onopen = () => console.log('[Luma] Connected ✅');
+    socket.on('connect', () => console.log('[Luma] Connected ✅', socket.id));
+    socket.on('disconnect', (r) => console.warn('[Luma] Disconnected:', r));
+    socket.on('connect_error', (e) => console.error('[Luma] Error:', e.message));
 
-      ws.onmessage = (e) => {
-        try { onMessageRef.current(JSON.parse(e.data)); } catch {}
-      };
+    const events = ['waiting','matched','message','typing','prompt','peer_left','reconnect_waiting','reconnect_expired'];
+    events.forEach(event => {
+      socket.on(event, (data) => {
+        onMessageRef.current({ type: event, ...data });
+      });
+    });
 
-      ws.onerror = (e) => console.error('[Luma] WebSocket error ❌', e);
-
-      ws.onclose = (e) => {
-        console.warn('[Luma] Connection closed. Code:', e.code, 'Reason:', e.reason);
-        reconnectTimer = setTimeout(connect, 2000);
-      };
-    };
-
-    connect();
-
-    return () => {
-      clearTimeout(reconnectTimer);
-      wsRef.current?.close();
-    };
+    return () => socket.disconnect();
   }, []);
 
   const send = useCallback((data) => {
-    if (wsRef.current?.readyState === WebSocket.OPEN) {
-      wsRef.current.send(JSON.stringify(data));
+    const { type, ...rest } = data;
+    if (socketRef.current?.connected) {
+      socketRef.current.emit(type, rest);
     } else {
-      console.warn('[Luma] Cannot send — not connected. State:', wsRef.current?.readyState);
+      console.warn('[Luma] Not connected');
     }
   }, []);
 
