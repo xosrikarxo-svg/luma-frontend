@@ -3,7 +3,7 @@ import React, { useState } from 'react';
 const BG='#0D1B2A', CARD='#1E3045', ACCENT='#F4A261', TEXT='#F5F0E8', MUTED='rgba(245,240,232,0.45)';
 const MOODS = ['😢','😐','🙂','😊','😁'];
 
-export default function Wrap({ moodBefore, onRestart, onReconnect, reconnectStatus }) {
+export default function Wrap({ moodBefore, onRestart }) {
   const [moodAfter, setMoodAfter] = useState(null);
   const improved = moodAfter !== null && moodAfter > moodBefore;
 
@@ -14,7 +14,8 @@ export default function Wrap({ moodBefore, onRestart, onReconnect, reconnectStat
         <p style={{ color:MUTED, fontSize:13, lineHeight:1.75, margin:'0 0 40px', maxWidth:270 }}>
           All messages have been permanently deleted from the server.
         </p>
-        <div style={{ background:CARD, borderRadius:20, padding:'22px 40px', display:'flex', flexDirection:'column', alignItems:'center', gap:16, width:'100%', maxWidth:300 }}>
+
+        <div style={{ background:CARD, borderRadius:20, padding:'22px 40px', display:'flex', flexDirection:'column', alignItems:'center', gap:16, width:'100%', maxWidth:280 }}>
           <p style={{ color:MUTED, fontSize:11, margin:0, textTransform:'uppercase', letterSpacing:'0.12em', fontWeight:500 }}>Your mood this session</p>
           <div style={{ display:'flex', alignItems:'center', gap:20 }}>
             <div style={{ textAlign:'center' }}>
@@ -45,33 +46,13 @@ export default function Wrap({ moodBefore, onRestart, onReconnect, reconnectStat
       </div>
 
       <div style={{ display:'flex', flexDirection:'column', gap:12, paddingBottom:48 }}>
-        <button onClick={onRestart} style={{ width:'100%', height:52, borderRadius:9999, background:ACCENT, border:'none', color:BG, fontSize:15, fontWeight:700, cursor:'pointer' }}>
+        <button onClick={onRestart} style={{ width:'100%', height:52, borderRadius:9999, background:ACCENT, border:'none', color:BG, fontSize:15, fontWeight:700, letterSpacing:'-0.2px' }}>
           Connect with someone new →
         </button>
-
-        {onReconnect && reconnectStatus !== 'expired' && (
-          <button
-            onClick={onReconnect}
-            disabled={reconnectStatus === 'waiting'}
-            style={{
-              width:'100%', height:52, borderRadius:9999,
-              background:'transparent',
-              border:`1.5px solid ${reconnectStatus === 'waiting' ? 'rgba(244,162,97,0.3)' : ACCENT}`,
-              color: reconnectStatus === 'waiting' ? 'rgba(244,162,97,0.4)' : ACCENT,
-              fontSize:15, fontWeight:600,
-              cursor: reconnectStatus === 'waiting' ? 'default' : 'pointer',
-              fontFamily:'inherit'
-            }}
-          >
-            {reconnectStatus === 'waiting' ? 'Waiting for them to reconnect...' : 'Reconnect with them ↩'}
-          </button>
-        )}
-
-        {reconnectStatus === 'expired' && (
-          <p style={{ textAlign:'center', color:MUTED, fontSize:13, margin:0 }}>They didn't reconnect in time.</p>
-        )}
-
-        <button onClick={onRestart} style={{ background:'transparent', border:'none', color:MUTED, fontSize:14, cursor:'pointer', padding:'8px 0', fontFamily:'inherit' }}>
+        <button onClick={onRestart} style={{ width:'100%', height:52, borderRadius:9999, background:'transparent', border:`1.5px solid ${ACCENT}`, color:ACCENT, fontSize:15, fontWeight:600 }}>
+          Reconnect with them ↩
+        </button>
+        <button onClick={onRestart} style={{ background:'transparent', border:'none', color:MUTED, fontSize:14, padding:'8px 0' }}>
           Back to home
         </button>
       </div>
