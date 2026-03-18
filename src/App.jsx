@@ -1,4 +1,4 @@
-import React, { useState, useRef, useCallback } from 'react';
+import React, { useState, useRef, useCallback, useEffect } from 'react';
 import { useSocket } from './useSocket';
 import Onboarding from './screens/Onboarding';
 import Mood from './screens/Mood';
@@ -14,18 +14,15 @@ export default function App() {
   const [prompt, setPrompt] = useState('');
   const [messages, setMessages] = useState([]);
   const [peerTyping, setPeerTyping] = useState(false);
-  const [reconnectStatus, setReconnectStatus] = useState(''); // 'waiting' | 'expired' | ''
+  const [reconnectStatus, setReconnectStatus] = useState('');
   const typingTimer = useRef(null);
-  const peerIdRef = useRef(null); // store peer's userId for reconnect
-  const myUserIdRef = useRef(null);
+  const peerIdRef = useRef(null);
+  const tagsRef = useRef([]);
+  const screenRef = useRef('onboarding');
+  screenRef.current = screen;
 
   const handleMessage = useCallback((msg) => {
-    if (msg.type === 'joined') {
-      myUserIdRef.current = msg.userId;
-    }
-    if (msg.type === 'waiting') {
-      setScreen('matching');
-    }
+    if (msg.type === 'waiting') setScreen('matching');
     if (msg.type === 'matched') {
       setPrompt(msg.prompt);
       setMessages([]);
@@ -40,28 +37,31 @@ export default function App() {
       clearTimeout(typingTimer.current);
       typingTimer.current = setTimeout(() => setPeerTyping(false), 2000);
     }
-    if (msg.type === 'prompt') {
-      setPrompt(msg.prompt);
-    }
+    if (msg.type === 'prompt') setPrompt(msg.prompt);
     if (msg.type === 'peer_left') {
-      peerIdRef.current = msg.peerId; // save so we can reconnect
+      peerIdRef.current = msg.peerId;
       setScreen('wrap');
     }
-    if (msg.type === 'reconnect_waiting') {
-      setReconnectStatus('waiting');
-    }
-    if (msg.type === 'reconnect_expired') {
-      setReconnectStatus('expired');
-    }
+    if (msg.type === 'reconnect_waiting') setReconnectStatus('waiting');
+    if (msg.type === 'reconnect_expired') setReconnectStatus('expired');
   }, []);
 
-  const { send } = useSocket(handleMessage);
+  const { send, connected } = useSocket(handleMessage);
 
-  const handleJoin = (selectedTags) => {
+  // When socket connects, re-send join if we're on matching screen
+  useEffect(() => {
+    if (connected && screenRef.current === 'matching' && tagsRef.current.length > 0) {
+      console.log('[Luma] Socket connected, sending join');
+      send({ type: 'join', tags: tagsRef.current });
+    }
+  }, [connected]);
+
+  const handleJoin = useCallback((selectedTags) => {
+    tagsRef.current = selectedTags;
     setTags(selectedTags);
-    send({ type: 'join', tags: selectedTags });
     setScreen('matching');
-  };
+    send({ type: 'join', tags: selectedTags });
+  }, [send]);
 
   const handleSend = (text) => {
     setMessages(prev => [...prev, { id: Date.now(), text, mine: true }]);
@@ -70,8 +70,9 @@ export default function App() {
 
   const handleTyping = () => send({ type: 'typing' });
   const handleNewPrompt = () => send({ type: 'new_prompt' });
+
   const handleLeave = () => {
-    peerIdRef.current = null; // no peer to reconnect with if we left intentionally
+    peerIdRef.current = null;
     send({ type: 'leave' });
     setScreen('wrap');
   };
@@ -82,17 +83,17 @@ export default function App() {
   };
 
   const restart = () => {
+    tagsRef.current = [];
     setTags([]); setMoodBefore(2); setMessages([]);
     setPrompt(''); peerIdRef.current = null;
-    setReconnectStatus('');
-    setScreen('onboarding');
+    setReconnectStatus(''); setScreen('onboarding');
   };
 
   return (
     <>
       {screen === 'onboarding' && <Onboarding onContinue={(t) => { setTags(t); setScreen('mood'); }} />}
       {screen === 'mood' && <Mood tags={tags} mood={moodBefore} setMood={setMoodBefore} onFind={() => handleJoin(tags)} />}
-      {screen === 'matching' && <Matching tags={tags} onCancel={() => { send({ type: 'leave' }); setScreen('onboarding'); }} />}
+      {screen === 'matching' && <Matching tags={tags} onCancel={() => { send({ type: 'leave' }); restart(); }} />}
       {screen === 'conversation' && (
         <Conversation
           messages={messages} prompt={prompt} peerTyping={peerTyping}
