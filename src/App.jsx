@@ -16,6 +16,7 @@ export default function App() {
   const [peerTyping, setPeerTyping] = useState(false);
   const [reconnectState, setReconnectState] = useState('idle');
   const [incomingFromId, setIncomingFromId] = useState(null);
+  const [peerId, setPeerId] = useState(null); // stored as state so Wrap re-renders
   const typingTimer = useRef(null);
   const peerIdRef = useRef(null);
   const tagsRef = useRef([]);
@@ -30,6 +31,8 @@ export default function App() {
       setMessages([]);
       setReconnectState('idle');
       setIncomingFromId(null);
+      setPeerId(null);
+      peerIdRef.current = null;
       setScreen('conversation');
     }
 
@@ -45,13 +48,17 @@ export default function App() {
 
     if (msg.type === 'prompt') setPrompt(msg.prompt);
 
-    // Person B receives this when Person A ends session
+    // Person A receives this after ending session
     if (msg.type === 'session_ended') {
       peerIdRef.current = msg.peerId;
+      setPeerId(msg.peerId);
       setScreen('wrap');
     }
+
+    // Person B receives this when Person A ends session
     if (msg.type === 'peer_left') {
-      peerIdRef.current = msg.peerId; // save peer's id so B can reconnect
+      peerIdRef.current = msg.peerId;
+      setPeerId(msg.peerId);
       setScreen('wrap');
     }
 
@@ -114,7 +121,7 @@ export default function App() {
   const restart = () => {
     tagsRef.current = [];
     setTags([]); setMoodBefore(2); setMessages([]);
-    setPrompt(''); peerIdRef.current = null;
+    setPrompt(''); peerIdRef.current = null; setPeerId(null);
     setReconnectState('idle'); setIncomingFromId(null);
     setScreen('onboarding');
   };
@@ -135,7 +142,7 @@ export default function App() {
         <Wrap
           moodBefore={moodBefore}
           onRestart={restart}
-          canReconnect={!!peerIdRef.current}
+          canReconnect={!!peerId}
           reconnectState={reconnectState}
           onReconnectRequest={handleReconnectRequest}
           onReconnectAccept={handleReconnectAccept}
