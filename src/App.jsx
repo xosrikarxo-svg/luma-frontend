@@ -1,4 +1,5 @@
 import React, { useState, useRef, useCallback, useEffect } from 'react';
+import { SpeedInsights } from '@vercel/speed-insights/react';
 import { useSocket } from './useSocket';
 import Onboarding from './screens/Onboarding';
 import Mood from './screens/Mood';
@@ -109,6 +110,7 @@ export default function App() {
           reconnectStatus={reconnectStatus}
         />
       )}
+      <SpeedInsights />
     </>
   );
 }
