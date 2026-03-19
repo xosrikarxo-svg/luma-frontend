@@ -14,7 +14,8 @@ export default function App() {
   const [prompt, setPrompt] = useState('');
   const [messages, setMessages] = useState([]);
   const [peerTyping, setPeerTyping] = useState(false);
-  const [reconnectStatus, setReconnectStatus] = useState('');
+  const [reconnectState, setReconnectState] = useState('idle'); // idle | requesting | incoming | waiting | accepted | declined | expired
+  const [incomingFromId, setIncomingFromId] = useState(null);
   const typingTimer = useRef(null);
   const peerIdRef = useRef(null);
   const tagsRef = useRef([]);
@@ -26,7 +27,8 @@ export default function App() {
     if (msg.type === 'matched') {
       setPrompt(msg.prompt);
       setMessages([]);
-      setReconnectStatus('');
+      setReconnectState('idle');
+      setIncomingFromId(null);
       setScreen('conversation');
     }
     if (msg.type === 'message') {
@@ -42,16 +44,19 @@ export default function App() {
       peerIdRef.current = msg.peerId;
       setScreen('wrap');
     }
-    if (msg.type === 'reconnect_waiting') setReconnectStatus('waiting');
-    if (msg.type === 'reconnect_expired') setReconnectStatus('expired');
+    // Reconnect events
+    if (msg.type === 'reconnect_incoming') {
+      setIncomingFromId(msg.fromId);
+      setReconnectState('incoming');
+    }
+    if (msg.type === 'reconnect_expired') setReconnectState('expired');
+    if (msg.type === 'reconnect_declined') setReconnectState('declined');
   }, []);
 
   const { send, connected } = useSocket(handleMessage);
 
-  // When socket connects, re-send join if we're on matching screen
   useEffect(() => {
     if (connected && screenRef.current === 'matching' && tagsRef.current.length > 0) {
-      console.log('[Luma] Socket connected, sending join');
       send({ type: 'join', tags: tagsRef.current });
     }
   }, [connected]);
@@ -77,16 +82,30 @@ export default function App() {
     setScreen('wrap');
   };
 
-  const handleReconnect = () => {
+  const handleReconnectRequest = () => {
     if (!peerIdRef.current) return;
+    setReconnectState('requesting');
     send({ type: 'reconnect_request', peerId: peerIdRef.current });
+  };
+
+  const handleReconnectAccept = () => {
+    if (!incomingFromId) return;
+    send({ type: 'reconnect_accept', fromId: incomingFromId });
+  };
+
+  const handleReconnectDecline = () => {
+    if (!incomingFromId) return;
+    send({ type: 'reconnect_decline', fromId: incomingFromId });
+    setReconnectState('idle');
+    setIncomingFromId(null);
   };
 
   const restart = () => {
     tagsRef.current = [];
     setTags([]); setMoodBefore(2); setMessages([]);
     setPrompt(''); peerIdRef.current = null;
-    setReconnectStatus(''); setScreen('onboarding');
+    setReconnectState('idle'); setIncomingFromId(null);
+    setScreen('onboarding');
   };
 
   return (
@@ -105,8 +124,11 @@ export default function App() {
         <Wrap
           moodBefore={moodBefore}
           onRestart={restart}
-          onReconnect={peerIdRef.current ? handleReconnect : null}
-          reconnectStatus={reconnectStatus}
+          canReconnect={!!peerIdRef.current}
+          reconnectState={reconnectState}
+          onReconnectRequest={handleReconnectRequest}
+          onReconnectAccept={handleReconnectAccept}
+          onReconnectDecline={handleReconnectDecline}
         />
       )}
     </>
@@ -122,9 +144,7 @@ function Matching({ tags, onCancel }) {
       `}</style>
       <div style={{ flex:1, display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center' }}>
         <div style={{ position:'relative', width:200, height:200, marginBottom:36 }}>
-          <div className="ring" />
-          <div className="ring" style={{ animationDelay:'0.67s' }} />
-          <div className="ring" style={{ animationDelay:'1.33s' }} />
+          <div className="ring" /><div className="ring" style={{ animationDelay:'0.67s' }} /><div className="ring" style={{ animationDelay:'1.33s' }} />
           <div style={{ position:'absolute', top:'50%', left:'50%', transform:'translate(-50%,-50%)', width:16, height:16, borderRadius:8, background:ACCENT }} />
         </div>
         <p style={{ fontSize:16, opacity:0.8, margin:'0 0 12px' }}>Finding your match...</p>
