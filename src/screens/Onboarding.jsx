@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 
-const BG='#0D1B2A', CARD='#1E3045', ACCENT='#F4A261', TEXT='#F5F0E8', MUTED='rgba(245,240,232,0.45)';
+const BG='#0D1B2A', ACCENT='#F4A261', TEXT='#F5F0E8', MUTED='rgba(245,240,232,0.45)';
 const ALL_TAGS = ['Music','Gaming','Movies','Books','Sports','Art','Tech','Food','Travel','Nature','Fitness','Fashion','Photography','Science','Anime'];
 const API = 'https://lumabackend.up.railway.app';
 
@@ -32,7 +32,7 @@ export default function Onboarding({ onContinue }) {
         <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', marginBottom:6 }}>
           <div>
             <h1 style={{ margin:0, fontSize:26, fontWeight:700, letterSpacing:'-0.5px' }}>What are you into?</h1>
-            <p style={{ margin:'6px 0 0', fontSize:14, color:MUTED }}>Pick up to 3 topics</p>
+            <p style={{ margin:'6px 0 0', fontSize:14, color:MUTED }}>Pick up to 3 topics ({tags.length}/3)</p>
           </div>
           <div style={{ display:'flex', alignItems:'center', gap:5, background:'rgba(46,213,115,0.08)', padding:'6px 12px', borderRadius:9999, border:'1px solid rgba(46,213,115,0.18)', flexShrink:0, marginTop:4 }}>
             <div style={{ width:7, height:7, borderRadius:'50%', background:'#2ed573', boxShadow:'0 0 5px #2ed573' }} />
@@ -54,35 +54,48 @@ export default function Onboarding({ onContinue }) {
             const count = queueCounts[t] || 0;
             return (
               <button key={t} onClick={() => toggle(t)} style={{
-                padding:'9px 16px',
+                padding:'9px 14px 9px 12px',
                 borderRadius:9999,
-                border: `1.5px solid ${sel ? ACCENT : count > 0 ? 'rgba(46,213,115,0.35)' : 'rgba(244,162,97,0.22)'}`,
-                background: sel ? ACCENT : count > 0 ? 'rgba(46,213,115,0.06)' : 'transparent',
+                border:`1.5px solid ${sel ? ACCENT : 'rgba(244,162,97,0.22)'}`,
+                background: sel ? ACCENT : 'transparent',
                 color: sel ? BG : ACCENT,
                 fontSize:14,
                 fontWeight: sel ? 700 : 400,
                 cursor:'pointer',
                 display:'flex',
                 alignItems:'center',
-                gap:6,
+                gap:7,
                 transition:'all 0.15s',
                 fontFamily:'inherit',
               }}>
-                {/* Green dot if people waiting */}
-                {count > 0 && !sel && (
-                  <span style={{ width:7, height:7, borderRadius:'50%', background:'#2ed573', boxShadow:'0 0 5px #2ed573', display:'inline-block', flexShrink:0 }} />
-                )}
+                {/* Green dot if selected, gray dot if not */}
+                <span style={{
+                  width:7, height:7, borderRadius:'50%', flexShrink:0,
+                  background: sel ? (BG) : 'rgba(245,240,232,0.25)',
+                  boxShadow: sel ? 'none' : 'none',
+                  display:'inline-block',
+                  outline: sel ? `2px solid rgba(13,27,42,0.3)` : 'none',
+                  outlineOffset: 1,
+                  // green dot when selected
+                  ...(sel ? { background: '#0D1B2A' } : {}),
+                  // actually: green when selected, gray when not
+                  background: sel ? '#2ed573' : 'rgba(245,240,232,0.2)',
+                  boxShadow: sel ? '0 0 5px #2ed573' : 'none',
+                }}/>
+
                 {t}
-                {/* Number badge — always show if there's someone waiting */}
+
+                {/* Number badge on right if people waiting */}
                 {count > 0 && (
                   <span style={{
                     fontSize:11,
                     fontWeight:700,
-                    color: sel ? 'rgba(13,27,42,0.7)' : '#2ed573',
-                    background: sel ? 'rgba(13,27,42,0.12)' : 'rgba(46,213,115,0.12)',
+                    color: sel ? 'rgba(13,27,42,0.65)' : ACCENT,
+                    background: sel ? 'rgba(13,27,42,0.15)' : 'rgba(244,162,97,0.12)',
                     padding:'1px 7px',
                     borderRadius:9999,
                     lineHeight:'18px',
+                    marginLeft:2,
                   }}>{count}</span>
                 )}
               </button>
@@ -90,7 +103,7 @@ export default function Onboarding({ onContinue }) {
           })}
         </div>
 
-        {/* Continue button */}
+        {/* Continue */}
         <button
           onClick={() => onContinue(tags)}
           disabled={tags.length === 0}
