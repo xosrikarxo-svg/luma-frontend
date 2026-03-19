@@ -14,7 +14,7 @@ export default function App() {
   const [prompt, setPrompt] = useState('');
   const [messages, setMessages] = useState([]);
   const [peerTyping, setPeerTyping] = useState(false);
-  const [reconnectState, setReconnectState] = useState('idle'); // idle | requesting | incoming | waiting | accepted | declined | expired
+  const [reconnectState, setReconnectState] = useState('idle');
   const [incomingFromId, setIncomingFromId] = useState(null);
   const typingTimer = useRef(null);
   const peerIdRef = useRef(null);
@@ -24,6 +24,7 @@ export default function App() {
 
   const handleMessage = useCallback((msg) => {
     if (msg.type === 'waiting') setScreen('matching');
+
     if (msg.type === 'matched') {
       setPrompt(msg.prompt);
       setMessages([]);
@@ -31,24 +32,34 @@ export default function App() {
       setIncomingFromId(null);
       setScreen('conversation');
     }
+
     if (msg.type === 'message') {
       setMessages(prev => [...prev, { id: Date.now(), text: msg.text, mine: false }]);
     }
+
     if (msg.type === 'typing') {
       setPeerTyping(true);
       clearTimeout(typingTimer.current);
       typingTimer.current = setTimeout(() => setPeerTyping(false), 2000);
     }
+
     if (msg.type === 'prompt') setPrompt(msg.prompt);
-    if (msg.type === 'peer_left') {
+
+    // Person B receives this when Person A ends session
+    if (msg.type === 'session_ended') {
       peerIdRef.current = msg.peerId;
       setScreen('wrap');
     }
-    // Reconnect events
+    if (msg.type === 'peer_left') {
+      peerIdRef.current = msg.peerId; // save peer's id so B can reconnect
+      setScreen('wrap');
+    }
+
     if (msg.type === 'reconnect_incoming') {
       setIncomingFromId(msg.fromId);
       setReconnectState('incoming');
     }
+
     if (msg.type === 'reconnect_expired') setReconnectState('expired');
     if (msg.type === 'reconnect_declined') setReconnectState('declined');
   }, []);
@@ -76,11 +87,13 @@ export default function App() {
   const handleTyping = () => send({ type: 'typing' });
   const handleNewPrompt = () => send({ type: 'new_prompt' });
 
-  const handleLeave = () => {
-    peerIdRef.current = null;
-    send({ type: 'leave' });
+  const handleLeave = useCallback(() => {
+    // Save peer id BEFORE leaving so Person A can also reconnect
+    const session = peerIdRef.current;
+    send({ type: 'leave', currentPeerId: session });
+    // Don't clear peerIdRef here — we need it for reconnect!
     setScreen('wrap');
-  };
+  }, [send]);
 
   const handleReconnectRequest = () => {
     if (!peerIdRef.current) return;

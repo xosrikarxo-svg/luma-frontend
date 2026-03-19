@@ -30,7 +30,12 @@ export function useSocket(onMessage) {
 
     socket.on('connect_error', (e) => console.error('[Luma] Error:', e.message));
 
-    const events = ['waiting','matched','message','typing','prompt','peer_left','reconnect_waiting','reconnect_expired'];
+    const events = [
+      'waiting', 'matched', 'message', 'typing', 'prompt',
+      'peer_left', 'session_ended',
+      'reconnect_incoming', 'reconnect_expired', 'reconnect_declined'
+    ];
+
     events.forEach(event => {
       socket.on(event, (data) => {
         onMessageRef.current({ type: event, ...(data || {}) });
