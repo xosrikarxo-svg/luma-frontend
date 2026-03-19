@@ -28,7 +28,6 @@ export default function Onboarding({ onContinue }) {
     <div style={{ minHeight:'100vh', background:BG, color:TEXT, fontFamily:'system-ui,-apple-system,sans-serif' }}>
       <div style={{ maxWidth:480, margin:'0 auto', padding:'48px 24px 40px' }}>
 
-        {/* Header */}
         <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', marginBottom:6 }}>
           <div>
             <h1 style={{ margin:0, fontSize:26, fontWeight:700, letterSpacing:'-0.5px' }}>What are you into?</h1>
@@ -42,16 +41,16 @@ export default function Onboarding({ onContinue }) {
           </div>
         </div>
 
-        {/* Progress bar */}
         <div style={{ height:3, background:'rgba(244,162,97,0.1)', borderRadius:9999, margin:'20px 0 28px' }}>
           <div style={{ height:3, background:ACCENT, borderRadius:9999, width:`${(tags.length/3)*100}%`, transition:'width 0.3s' }} />
         </div>
 
-        {/* Tags */}
         <div style={{ display:'flex', flexWrap:'wrap', gap:10, marginBottom:44 }}>
           {ALL_TAGS.map(t => {
             const sel = tags.includes(t);
             const count = queueCounts[t] || 0;
+            const hasWaiting = count > 0;
+
             return (
               <button key={t} onClick={() => toggle(t)} style={{
                 padding:'9px 14px 9px 12px',
@@ -68,30 +67,27 @@ export default function Onboarding({ onContinue }) {
                 transition:'all 0.15s',
                 fontFamily:'inherit',
               }}>
-                {/* Green dot if selected, gray dot if not */}
+                {/* Green dot if people waiting, gray dot if not */}
                 <span style={{
-                  width:7, height:7, borderRadius:'50%', flexShrink:0,
-                  background: sel ? (BG) : 'rgba(245,240,232,0.25)',
-                  boxShadow: sel ? 'none' : 'none',
+                  width:7,
+                  height:7,
+                  borderRadius:'50%',
+                  flexShrink:0,
                   display:'inline-block',
-                  outline: sel ? `2px solid rgba(13,27,42,0.3)` : 'none',
-                  outlineOffset: 1,
-                  // green dot when selected
-                  ...(sel ? { background: '#0D1B2A' } : {}),
-                  // actually: green when selected, gray when not
-                  background: sel ? '#2ed573' : 'rgba(245,240,232,0.2)',
-                  boxShadow: sel ? '0 0 5px #2ed573' : 'none',
+                  background: hasWaiting ? '#2ed573' : 'rgba(245,240,232,0.2)',
+                  boxShadow: hasWaiting ? '0 0 5px #2ed573' : 'none',
+                  transition:'all 0.3s',
                 }}/>
 
                 {t}
 
-                {/* Number badge on right if people waiting */}
+                {/* Count badge */}
                 {count > 0 && (
                   <span style={{
                     fontSize:11,
                     fontWeight:700,
-                    color: sel ? 'rgba(13,27,42,0.65)' : ACCENT,
-                    background: sel ? 'rgba(13,27,42,0.15)' : 'rgba(244,162,97,0.12)',
+                    color: sel ? 'rgba(13,27,42,0.65)' : '#2ed573',
+                    background: sel ? 'rgba(13,27,42,0.15)' : 'rgba(46,213,115,0.12)',
                     padding:'1px 7px',
                     borderRadius:9999,
                     lineHeight:'18px',
@@ -103,7 +99,6 @@ export default function Onboarding({ onContinue }) {
           })}
         </div>
 
-        {/* Continue */}
         <button
           onClick={() => onContinue(tags)}
           disabled={tags.length === 0}
