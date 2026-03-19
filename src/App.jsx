@@ -88,11 +88,9 @@ export default function App() {
   const handleNewPrompt = () => send({ type: 'new_prompt' });
 
   const handleLeave = useCallback(() => {
-    // Save peer id BEFORE leaving so Person A can also reconnect
-    const session = peerIdRef.current;
-    send({ type: 'leave', currentPeerId: session });
-    // Don't clear peerIdRef here — we need it for reconnect!
-    setScreen('wrap');
+    send({ type: 'leave' });
+    // Don't setScreen here — wait for session_ended event from server
+    // which comes back with peerId so reconnect button shows for Person A too
   }, [send]);
 
   const handleReconnectRequest = () => {
