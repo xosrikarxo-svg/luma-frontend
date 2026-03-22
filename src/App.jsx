@@ -14,6 +14,7 @@ export default function App() {
   const [prompt, setPrompt] = useState('');
   const [messages, setMessages] = useState([]);
   const [peerTyping, setPeerTyping] = useState(false);
+  const [peerBlocked, setPeerBlocked] = useState(false);
   const [reconnectState, setReconnectState] = useState('idle');
   const [incomingFromId, setIncomingFromId] = useState(null);
   const [peerId, setPeerId] = useState(null); // stored as state so Wrap re-renders
@@ -67,6 +68,7 @@ export default function App() {
       setReconnectState('incoming');
     }
 
+    if (msg.type === 'peer_message_blocked') { setPeerBlocked(true); setTimeout(() => setPeerBlocked(false), 4500); }
     if (msg.type === 'reconnect_expired') setReconnectState('expired');
     if (msg.type === 'reconnect_declined') setReconnectState('declined');
   }, []);
@@ -92,6 +94,7 @@ export default function App() {
   };
 
   const handleTyping = () => send({ type: 'typing' });
+  const handleBlocked = (label) => send({ type: 'message_blocked', label });
   const handleNewPrompt = () => send({ type: 'new_prompt' });
 
   const handleLeave = useCallback(() => {
@@ -133,9 +136,9 @@ export default function App() {
       {screen === 'matching' && <Matching tags={tags} onCancel={() => { send({ type: 'leave' }); restart(); }} />}
       {screen === 'conversation' && (
         <Conversation
-          messages={messages} prompt={prompt} peerTyping={peerTyping}
+          messages={messages} prompt={prompt} peerTyping={peerBlocked ? 'blocked' : peerTyping}
           onSend={handleSend} onTyping={handleTyping}
-          onNewPrompt={handleNewPrompt} onLeave={handleLeave}
+          onNewPrompt={handleNewPrompt} onLeave={handleLeave} onBlocked={handleBlocked}
         />
       )}
       {screen === 'wrap' && (

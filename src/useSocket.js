@@ -33,7 +33,7 @@ export function useSocket(onMessage) {
     const events = [
       'waiting', 'matched', 'message', 'typing', 'prompt',
       'peer_left', 'session_ended',
-      'reconnect_incoming', 'reconnect_expired', 'reconnect_declined'
+      'reconnect_incoming', 'reconnect_expired', 'reconnect_declined', 'peer_message_blocked'
     ];
 
     events.forEach(event => {
