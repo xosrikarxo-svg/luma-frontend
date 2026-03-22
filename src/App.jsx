@@ -1,5 +1,6 @@
 import React, { useState, useRef, useCallback, useEffect } from 'react';
 import { useSocket } from './useSocket';
+import { generateKeyPair, exportPublicKey, importPublicKey, deriveSharedKey, encryptMessage, decryptMessage } from './crypto';
 import Onboarding from './screens/Onboarding';
 import Mood from './screens/Mood';
 import Conversation from './screens/Conversation';
@@ -17,14 +18,19 @@ export default function App() {
   const [peerBlocked, setPeerBlocked] = useState(false);
   const [reconnectState, setReconnectState] = useState('idle');
   const [incomingFromId, setIncomingFromId] = useState(null);
-  const [peerId, setPeerId] = useState(null); // stored as state so Wrap re-renders
+  const [peerId, setPeerId] = useState(null);
+
   const typingTimer = useRef(null);
   const peerIdRef = useRef(null);
   const tagsRef = useRef([]);
   const screenRef = useRef('onboarding');
   screenRef.current = screen;
 
-  const handleMessage = useCallback((msg) => {
+  // Crypto refs
+  const keyPairRef = useRef(null);
+  const sharedKeyRef = useRef(null);
+
+  const handleMessage = useCallback(async (msg) => {
     if (msg.type === 'waiting') setScreen('matching');
 
     if (msg.type === 'matched') {
@@ -34,11 +40,38 @@ export default function App() {
       setIncomingFromId(null);
       setPeerId(null);
       peerIdRef.current = null;
+      sharedKeyRef.current = null;
       setScreen('conversation');
+
+      // Generate key pair and send public key to peer
+      try {
+        const kp = await generateKeyPair();
+        keyPairRef.current = kp;
+        const pubKey = await exportPublicKey(kp);
+        // send via socket after small delay to ensure conversation screen is mounted
+        setTimeout(() => {
+          sendRef.current({ type: 'public_key', publicKey: pubKey });
+        }, 200);
+      } catch(e) { console.error('Crypto init error:', e); }
+    }
+
+    if (msg.type === 'peer_public_key') {
+      // Derive shared key from peer's public key
+      try {
+        const peerPubKey = await importPublicKey(msg.publicKey);
+        const shared = await deriveSharedKey(keyPairRef.current, peerPubKey);
+        sharedKeyRef.current = shared;
+        console.log('[Luma] E2E encryption established ✅');
+      } catch(e) { console.error('Key exchange error:', e); }
     }
 
     if (msg.type === 'message') {
-      setMessages(prev => [...prev, { id: Date.now(), text: msg.text, mine: false }]);
+      let text = msg.text;
+      // Decrypt if we have a shared key
+      if (sharedKeyRef.current) {
+        try { text = await decryptMessage(sharedKeyRef.current, msg.text); } catch(e) { console.warn('Decrypt failed:', e); }
+      }
+      setMessages(prev => [...prev, { id: Date.now(), text, mine: false }]);
     }
 
     if (msg.type === 'typing') {
@@ -49,18 +82,21 @@ export default function App() {
 
     if (msg.type === 'prompt') setPrompt(msg.prompt);
 
-    // Person A receives this after ending session
     if (msg.type === 'session_ended') {
       peerIdRef.current = msg.peerId;
       setPeerId(msg.peerId);
       setScreen('wrap');
     }
 
-    // Person B receives this when Person A ends session
     if (msg.type === 'peer_left') {
       peerIdRef.current = msg.peerId;
       setPeerId(msg.peerId);
       setScreen('wrap');
+    }
+
+    if (msg.type === 'peer_message_blocked') {
+      setPeerBlocked(true);
+      setTimeout(() => setPeerBlocked(false), 4500);
     }
 
     if (msg.type === 'reconnect_incoming') {
@@ -68,12 +104,13 @@ export default function App() {
       setReconnectState('incoming');
     }
 
-    if (msg.type === 'peer_message_blocked') { setPeerBlocked(true); setTimeout(() => setPeerBlocked(false), 4500); }
     if (msg.type === 'reconnect_expired') setReconnectState('expired');
     if (msg.type === 'reconnect_declined') setReconnectState('declined');
   }, []);
 
   const { send, connected } = useSocket(handleMessage);
+  const sendRef = useRef(send);
+  sendRef.current = send;
 
   useEffect(() => {
     if (connected && screenRef.current === 'matching' && tagsRef.current.length > 0) {
@@ -88,19 +125,22 @@ export default function App() {
     send({ type: 'join', tags: selectedTags });
   }, [send]);
 
-  const handleSend = (text) => {
+  const handleSend = async (text) => {
+    // Encrypt before sending
+    let payload = text;
+    if (sharedKeyRef.current) {
+      try { payload = await encryptMessage(sharedKeyRef.current, text); } catch(e) { console.warn('Encrypt failed:', e); }
+    }
     setMessages(prev => [...prev, { id: Date.now(), text, mine: true }]);
-    send({ type: 'message', text });
+    send({ type: 'message', text: payload });
   };
 
   const handleTyping = () => send({ type: 'typing' });
-  const handleBlocked = (label) => send({ type: 'message_blocked', label });
   const handleNewPrompt = () => send({ type: 'new_prompt' });
+  const handleBlocked = (label) => send({ type: 'message_blocked', label });
 
   const handleLeave = useCallback(() => {
     send({ type: 'leave' });
-    // Don't setScreen here — wait for session_ended event from server
-    // which comes back with peerId so reconnect button shows for Person A too
   }, [send]);
 
   const handleReconnectRequest = () => {
@@ -126,6 +166,7 @@ export default function App() {
     setTags([]); setMoodBefore(2); setMessages([]);
     setPrompt(''); peerIdRef.current = null; setPeerId(null);
     setReconnectState('idle'); setIncomingFromId(null);
+    keyPairRef.current = null; sharedKeyRef.current = null;
     setScreen('onboarding');
   };
 
@@ -136,9 +177,11 @@ export default function App() {
       {screen === 'matching' && <Matching tags={tags} onCancel={() => { send({ type: 'leave' }); restart(); }} />}
       {screen === 'conversation' && (
         <Conversation
-          messages={messages} prompt={prompt} peerTyping={peerBlocked ? 'blocked' : peerTyping}
+          messages={messages} prompt={prompt}
+          peerTyping={peerBlocked ? 'blocked' : peerTyping}
           onSend={handleSend} onTyping={handleTyping}
-          onNewPrompt={handleNewPrompt} onLeave={handleLeave} onBlocked={handleBlocked}
+          onNewPrompt={handleNewPrompt} onLeave={handleLeave}
+          onBlocked={handleBlocked}
         />
       )}
       {screen === 'wrap' && (
