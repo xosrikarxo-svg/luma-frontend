@@ -126,8 +126,16 @@ export default function App() {
   }, [send]);
 
   const handleSend = async (text) => {
-    // Encrypt before sending
     let payload = text;
+    // Wait up to 3s for shared key to be ready
+    if (!sharedKeyRef.current) {
+      await new Promise(resolve => {
+        const check = setInterval(() => {
+          if (sharedKeyRef.current) { clearInterval(check); resolve(); }
+        }, 100);
+        setTimeout(() => { clearInterval(check); resolve(); }, 3000);
+      });
+    }
     if (sharedKeyRef.current) {
       try { payload = await encryptMessage(sharedKeyRef.current, text); } catch(e) { console.warn('Encrypt failed:', e); }
     }
