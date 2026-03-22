@@ -7,17 +7,7 @@ const fmt = s => `${Math.floor(s/60)}:${(s%60).toString().padStart(2,'0')}`;
 const options = new ProfanityOptions();
 options.wholeWord = false;
 const profanity = new Profanity(options);
-
-profanity.addWords([
-  'kys','stfu','gtfo','nsfw','fml',
-  'rape','raping','rapist','pedophile','pedo','paedo','groomer',
-  'suicide','suicidal','selfharm','self-harm','overdose','cutting myself',
-  'onlyfans','pornhub','xvideos','xhamster','redtube','youporn',
-  'nigga','nigg','tranny','shemale','retard','spastic',
-  'terrorist','jihad','neo nazi','kkk','ku klux','white power','white supremacy',
-  'meth','heroin','cocaine','crack','fentanyl','mdma','molly','lsd','ecstasy','ketamine','roofie','rohypnol',
-  'drug dealer','buy drugs','sell drugs','score drugs',
-]);
+profanity.addWords(['kys','stfu','gtfo','nsfw','fml','rape','raping','rapist','pedophile','pedo','paedo','groomer','suicide','suicidal','selfharm','self-harm','overdose','cutting myself','onlyfans','pornhub','xvideos','xhamster','redtube','youporn','nigga','nigg','tranny','shemale','retard','spastic','terrorist','jihad','neo nazi','kkk','ku klux','white power','white supremacy','meth','heroin','cocaine','crack','fentanyl','mdma','molly','lsd','ecstasy','ketamine','roofie','rohypnol','drug dealer','buy drugs','sell drugs','score drugs']);
 
 const PERSONAL_INFO_REGEX = /(\+?\d[\s\-.]?\(?\d{1,4}\)?[\s\-.]?\d{1,4}[\s\-.]?\d{1,9})|(@[a-zA-Z0-9_.]+)|(instagram|snapchat|whatsapp|telegram|discord|twitter|tiktok|facebook|wechat|viber)\s*[:=\-]?\s*\w+|(my number|call me|text me|dm me|my insta|my snap|my discord|my ig|my twitter|my tiktok|add me on|follow me on|find me on)/i;
 const NAME_REGEX = /\b(my name is|i am|i'm|im |call me|they call me|people call me|you can call me)\s+([A-Z][a-z]{1,15}|[a-z]{2,15})\b/i;
@@ -37,6 +27,7 @@ export default function Conversation({ messages, prompt, peerTyping, onSend, onT
   const [warning, setWarning] = useState(null);
   const [warningVisible, setWarningVisible] = useState(false);
   const [peerWarning, setPeerWarning] = useState(false);
+  const [reportConfirm, setReportConfirm] = useState(false);
   const endRef = useRef(null);
   const timerRef = useRef(null);
   const warningTimer = useRef(null);
@@ -51,7 +42,6 @@ export default function Conversation({ messages, prompt, peerTyping, onSend, onT
 
   useEffect(() => { endRef.current?.scrollIntoView({ behavior:'smooth' }); }, [messages, peerTyping]);
 
-  // Listen for peer blocked event passed from App
   useEffect(() => {
     if (peerTyping === 'blocked') {
       setPeerWarning(true);
@@ -67,6 +57,11 @@ export default function Conversation({ messages, prompt, peerTyping, onSend, onT
     warningTimer.current = setTimeout(() => setWarningVisible(false), 4500);
   };
 
+  const handleReport = () => {
+    setReportConfirm(false);
+    onLeave(); // ends session + deletes data
+  };
+
   const send = () => {
     if (!input.trim()) return;
     const text = input.trim();
@@ -74,7 +69,7 @@ export default function Conversation({ messages, prompt, peerTyping, onSend, onT
     if (result.blocked) {
       setInput('');
       showWarning(result.label, result.tip);
-      onBlocked && onBlocked(result.label); // notify server → peer
+      onBlocked && onBlocked(result.label);
       return;
     }
     setInput('');
@@ -90,10 +85,29 @@ export default function Conversation({ messages, prompt, peerTyping, onSend, onT
         .msg{animation:fi 0.2s ease}
         @keyframes warnIn{from{opacity:0;transform:translateY(-100%)}to{opacity:1;transform:translateY(0)}}
         @keyframes warnOut{from{opacity:1;transform:translateY(0)}to{opacity:0;transform:translateY(-100%)}}
+        @keyframes modalIn{from{opacity:0;transform:scale(0.95)}to{opacity:1;transform:scale(1)}}
         .warn-in{animation:warnIn 0.2s ease forwards}
         .warn-out{animation:warnOut 0.2s ease forwards}
+        .modal-in{animation:modalIn 0.2s ease forwards}
         input:focus{outline:none}input::placeholder{color:rgba(245,240,232,0.25)}
       `}</style>
+
+      {/* Report confirm modal */}
+      {reportConfirm && (
+        <div style={{ position:'absolute', inset:0, zIndex:200, background:'rgba(13,27,42,0.92)', display:'flex', alignItems:'center', justifyContent:'center', padding:24 }}>
+          <div className="modal-in" style={{ background:CARD, borderRadius:20, padding:'28px 24px', maxWidth:320, width:'100%', textAlign:'center' }}>
+            <div style={{ fontSize:32, marginBottom:12 }}>⚑</div>
+            <p style={{ color:TEXT, fontSize:17, fontWeight:700, margin:'0 0 8px', letterSpacing:'-0.3px' }}>Report this conversation?</p>
+            <p style={{ color:MUTED, fontSize:13, lineHeight:1.6, margin:'0 0 24px' }}>This will immediately end the session and permanently delete all messages. The other person won't know you reported them.</p>
+            <button onClick={handleReport} style={{ width:'100%', height:48, borderRadius:9999, background:'#b93232', border:'none', color:'#fff', fontSize:15, fontWeight:700, cursor:'pointer', marginBottom:10, fontFamily:'inherit' }}>
+              Yes, report & end session
+            </button>
+            <button onClick={() => setReportConfirm(false)} style={{ width:'100%', height:44, borderRadius:9999, background:'transparent', border:`1.5px solid rgba(245,240,232,0.12)`, color:MUTED, fontSize:14, cursor:'pointer', fontFamily:'inherit' }}>
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* My warning banner */}
       {warning && (
@@ -121,9 +135,16 @@ export default function Conversation({ messages, prompt, peerTyping, onSend, onT
 
       {/* Top bar */}
       <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', padding:'14px 20px 10px', flexShrink:0 }}>
-        <div style={{ width:32, height:32, borderRadius:10, background:ACCENT, display:'flex', alignItems:'center', justifyContent:'center' }}>
-          <span style={{ color:BG, fontSize:14, fontWeight:800 }}>L</span>
-        </div>
+        {/* Report button */}
+        <button
+          onClick={() => setReportConfirm(true)}
+          style={{ width:32, height:32, borderRadius:10, background:ACCENT, border:'none', display:'flex', alignItems:'center', justifyContent:'center', cursor:'pointer', flexShrink:0 }}
+          title="Report this conversation"
+        >
+          <span style={{ color:BG, fontSize:15, lineHeight:1 }}>⚑</span>
+        </button>
+
+        {/* Timer */}
         <div style={{ background:CARD, padding:'5px 16px', borderRadius:9999 }}>
           <span style={{ color: timeLeft < 60 ? '#e05555' : ACCENT, fontSize:13, fontWeight:600, fontVariantNumeric:'tabular-nums' }}>{fmt(timeLeft)}</span>
         </div>
