@@ -1,46 +1,40 @@
 import React, { useState, useEffect, useRef } from 'react';
-import Filter from 'bad-words';
+import { Profanity, ProfanityOptions } from '@2toad/profanity';
 
 const BG='#0D1B2A', CARD='#1E3045', ACCENT='#F4A261', TEXT='#F5F0E8', MUTED='rgba(245,240,232,0.45)';
 const fmt = s => `${Math.floor(s/60)}:${(s%60).toString().padStart(2,'0')}`;
 
 // ── CONTENT FILTER ─────────────────────────────────────────
-const profanityFilter = new Filter();
+const options = new ProfanityOptions();
+options.wholeWord = false; // catch partials too
+const profanity = new Profanity(options);
 
-// Add extra words not in the default list
-profanityFilter.addWords(
-  'kys','stfu','gtfo','nsfw','ngl','fml',
-  'rape','r4pe','raping','rapist',
-  'pedophile','pedo','paedo','groomer',
-  'suicide','suicidal','selfharm','self-harm','self harm',
-  'overdose','od','cutting myself',
-  'onlyfans','only fans',
-  'pornhub','xvideos','xhamster','redtube',
-  'nigga','n1gga','nigg','wigger',
-  'tranny','shemale','ladyboy',
-  'incel','femcel','simp',
-  'retard','r3tard','ret4rd','spastic',
-  'terrorist','jihad','isis','nazi','hitler',
-  'meth','heroin','cocaine','crack','fentanyl','weed','molly','mdma','lsd',
-  'drug dealer','buy drugs','sell drugs'
-);
+// Add extra words on top of the built-in list
+profanity.addWords([
+  'kys','stfu','gtfo','nsfw','fml',
+  'rape','raping','rapist','pedophile','pedo','paedo','groomer',
+  'suicide','suicidal','selfharm','self-harm','overdose','cutting myself',
+  'onlyfans','pornhub','xvideos','xhamster','redtube','youporn',
+  'nigga','nigg','tranny','shemale',
+  'retard','spastic',
+  'terrorist','jihad','neo nazi','kkk','ku klux','white power','white supremacy',
+  'meth','heroin','cocaine','crack','fentanyl','mdma','molly','lsd','ecstasy','ketamine','roofie','rohypnol',
+  'drug dealer','buy drugs','sell drugs','score drugs',
+]);
 
 // Personal info patterns
-const PERSONAL_INFO_REGEX = /(\+?\d[\s\-.]?\(?\d{1,4}\)?[\s\-.]?\d{1,4}[\s\-.]?\d{1,9})|(@[a-zA-Z0-9_.]+)|(instagram|snapchat|whatsapp|telegram|discord|twitter|tiktok|facebook|wechat|line|viber)\s*[:=\-]?\s*\w+|(my number|call me|text me|dm me|my insta|my snap|my discord|my ig|my twitter|my tiktok|add me on|follow me on|find me on)/i;
+const PERSONAL_INFO_REGEX = /(\+?\d[\s\-.]?\(?\d{1,4}\)?[\s\-.]?\d{1,4}[\s\-.]?\d{1,9})|(@[a-zA-Z0-9_.]+)|(instagram|snapchat|whatsapp|telegram|discord|twitter|tiktok|facebook|wechat|viber)\s*[:=\-]?\s*\w+|(my number|call me|text me|dm me|my insta|my snap|my discord|my ig|my twitter|my tiktok|add me on|follow me on|find me on)/i;
 
 // Name detection
-const NAME_REGEX = /\b(my name is|i am|i'm|im|call me|they call me|people call me|you can call me|it's|its)\s+([A-Z][a-z]{1,15}|[a-z]{2,15})\b/i;
+const NAME_REGEX = /\b(my name is|i am|i'm|im |call me|they call me|people call me|you can call me)\s+([A-Z][a-z]{1,15}|[a-z]{2,15})\b/i;
 
-// Violence / threats
-const VIOLENCE_REGEX = /\b(kill yourself|hang yourself|shoot yourself|cut yourself|kys|i will kill|ill kill|imma kill|i will hurt|i will find you|i know where you live|come find you|i will rape|go die|drop dead|i'll hurt)\b/i;
+// Violence / threats / self harm
+const VIOLENCE_REGEX = /\b(kill yourself|hang yourself|shoot yourself|cut yourself|kys|i will kill|ill kill|imma kill|i will hurt|i will find you|i know where you live|i will rape|go die|drop dead|shoot up|bomb threat|mass shooting|suicide bomb|want to kill myself|gonna kill myself|end my life|slit my wrists)\b/i;
 
 function filterMessage(text) {
-  try {
-    if (profanityFilter.isProfane(text)) {
-      return { blocked: true, label: 'Inappropriate language', tip: "Let's keep it respectful — this is a safe space for real connection." };
-    }
-  } catch(e) {}
-
+  if (profanity.exists(text)) {
+    return { blocked: true, label: 'Inappropriate language', tip: "Let's keep it respectful — this is a safe space for real connection." };
+  }
   if (VIOLENCE_REGEX.test(text)) {
     return { blocked: true, label: 'Threatening language', tip: "Threats or violent language aren't allowed here." };
   }
@@ -115,8 +109,7 @@ export default function Conversation({ messages, prompt, peerTyping, onSend, onT
           className={warningVisible ? 'warn-in' : 'warn-out'}
           style={{
             position:'absolute', top:0, left:0, right:0, zIndex:100,
-            background:'#b93232',
-            padding:'12px 16px',
+            background:'#b93232', padding:'12px 16px',
             display:'flex', alignItems:'flex-start', gap:10,
           }}
         >
