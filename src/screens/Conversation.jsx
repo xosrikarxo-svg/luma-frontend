@@ -3,11 +3,48 @@ import React, { useState, useEffect, useRef } from 'react';
 const BG='#0D1B2A', CARD='#1E3045', ACCENT='#F4A261', TEXT='#F5F0E8', MUTED='rgba(245,240,232,0.45)';
 const fmt = s => `${Math.floor(s/60)}:${(s%60).toString().padStart(2,'0')}`;
 
+// ── CONTENT FILTER ─────────────────────────────────────────
+const FILTERS = {
+  profanity: {
+    label: 'Language',
+    tip: "Let's keep it respectful.",
+    pattern: /\b(fuck|shit|ass|bitch|cunt|dick|cock|pussy|bastard|damn|hell|crap|piss|whore|slut|faggot|nigger|retard)\b/i,
+  },
+  sexual: {
+    label: 'Sexual content',
+    tip: "This space is for genuine connection — keep it appropriate.",
+    pattern: /\b(sex|porn|nude|naked|horny|masturbat|boob|tit|penis|vagina|orgasm|cum|condom|blowjob|handjob|fingering|dildo|fetish|kink|nsfw|erotic|xxx|onlyfans)\b/i,
+  },
+  violence: {
+    label: 'Violent or threatening language',
+    tip: "Threats or violent language aren't okay here.",
+    pattern: /\b(kill|murder|rape|stab|shoot|bomb|attack|hurt you|i will find|die|kys|kill yourself|hang yourself|shoot yourself|cut yourself|i know where you live)\b/i,
+  },
+  personalInfo: {
+    label: 'Personal information',
+    tip: "Sharing phone numbers breaks your anonymity — that's the whole point of Luma.",
+    pattern: /(\+?\d[\s\-.]?\(?\d{1,4}\)?[\s\-.]?\d{1,4}[\s\-.]?\d{1,9})|(@[a-zA-Z0-9_.]+)|(instagram|snapchat|whatsapp|telegram|discord|twitter|tiktok|facebook)\s*[:=\-]?\s*\w+|(my number|call me|text me|dm me|my insta|my snap)/i,
+  },
+};
+
+function filterMessage(text) {
+  for (const [key, filter] of Object.entries(FILTERS)) {
+    if (filter.pattern.test(text)) {
+      return { blocked: true, label: filter.label, tip: filter.tip };
+    }
+  }
+  return { blocked: false };
+}
+
+// ── COMPONENT ──────────────────────────────────────────────
 export default function Conversation({ messages, prompt, peerTyping, onSend, onTyping, onNewPrompt, onLeave }) {
   const [input, setInput] = useState('');
   const [timeLeft, setTimeLeft] = useState(20 * 60);
+  const [warning, setWarning] = useState(null); // { label, tip }
+  const [warningVisible, setWarningVisible] = useState(false);
   const endRef = useRef(null);
   const timerRef = useRef(null);
+  const warningTimer = useRef(null);
 
   useEffect(() => {
     timerRef.current = setInterval(() => {
@@ -21,22 +58,59 @@ export default function Conversation({ messages, prompt, peerTyping, onSend, onT
 
   useEffect(() => { endRef.current?.scrollIntoView({ behavior:'smooth' }); }, [messages, peerTyping]);
 
+  const showWarning = (label, tip) => {
+    setWarning({ label, tip });
+    setWarningVisible(true);
+    clearTimeout(warningTimer.current);
+    warningTimer.current = setTimeout(() => setWarningVisible(false), 4000);
+  };
+
   const send = () => {
     if (!input.trim()) return;
-    onSend(input.trim());
+    const text = input.trim();
+    const result = filterMessage(text);
+    if (result.blocked) {
+      setInput('');
+      showWarning(result.label, result.tip);
+      return;
+    }
     setInput('');
+    onSend(text);
   };
 
   return (
-    <div style={{ height:'100vh', background:BG, display:'flex', flexDirection:'column', color:TEXT, maxWidth:600, margin:'0 auto' }}>
+    <div style={{ height:'100vh', background:BG, display:'flex', flexDirection:'column', color:TEXT, maxWidth:600, margin:'0 auto', position:'relative' }}>
       <style>{`
         @keyframes bop{0%,100%{transform:translateY(0)}50%{transform:translateY(-5px)}}
         .dot{width:7px;height:7px;border-radius:50%;background:${MUTED};display:inline-block;animation:bop 0.6s ease-in-out infinite}
         @keyframes fi{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}
         .msg{animation:fi 0.2s ease}
-        input:focus{outline:none}
-        input::placeholder{color:rgba(245,240,232,0.25)}
+        @keyframes slideDown{from{opacity:0;transform:translateY(-10px)}to{opacity:1;transform:translateY(0)}}
+        @keyframes slideUp{from{opacity:1;transform:translateY(0)}to{opacity:0;transform:translateY(-10px)}}
+        .warn-in{animation:slideDown 0.25s ease forwards}
+        .warn-out{animation:slideUp 0.25s ease forwards}
+        input:focus{outline:none}input::placeholder{color:rgba(245,240,232,0.25)}
       `}</style>
+
+      {/* Warning banner */}
+      {warning && (
+        <div
+          className={warningVisible ? 'warn-in' : 'warn-out'}
+          style={{
+            position:'absolute', top:0, left:0, right:0, zIndex:100,
+            background:'rgba(220,80,50,0.95)',
+            padding:'10px 16px',
+            display:'flex', alignItems:'flex-start', gap:10,
+          }}
+        >
+          <span style={{ fontSize:16, flexShrink:0 }}>⚠️</span>
+          <div>
+            <p style={{ margin:0, fontSize:13, fontWeight:600, color:'#fff' }}>Message blocked — {warning.label}</p>
+            <p style={{ margin:'2px 0 0', fontSize:12, color:'rgba(255,255,255,0.8)', lineHeight:1.4 }}>{warning.tip}</p>
+          </div>
+          <button onClick={() => setWarningVisible(false)} style={{ marginLeft:'auto', background:'none', border:'none', color:'rgba(255,255,255,0.7)', fontSize:16, cursor:'pointer', flexShrink:0 }}>✕</button>
+        </div>
+      )}
 
       {/* Top bar */}
       <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', padding:'14px 20px 10px', flexShrink:0 }}>
@@ -51,14 +125,14 @@ export default function Conversation({ messages, prompt, peerTyping, onSend, onT
       {/* Prompt card */}
       <div style={{ margin:'0 16px 10px', background:CARD, borderRadius:12, borderLeft:`3px solid ${ACCENT}`, padding:'13px 14px', display:'flex', alignItems:'center', gap:10, flexShrink:0 }}>
         <p style={{ flex:1, color:TEXT, fontSize:13, lineHeight:1.55, margin:0, opacity:0.88 }}>{prompt}</p>
-        <button onClick={onNewPrompt} style={{ width:32, height:32, borderRadius:'50%', border:`1.5px solid ${ACCENT}`, background:'transparent', color:ACCENT, fontSize:16, display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>↺</button>
+        <button onClick={onNewPrompt} style={{ width:32, height:32, borderRadius:'50%', border:`1.5px solid ${ACCENT}`, background:'transparent', color:ACCENT, fontSize:16, display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0, cursor:'pointer' }}>↺</button>
       </div>
 
       {/* Messages */}
       <div style={{ flex:1, overflowY:'auto', padding:'6px 16px 4px' }}>
         {messages.length === 0 && (
           <div style={{ textAlign:'center', padding:'40px 16px' }}>
-            <p style={{ color:MUTED, fontSize:13, lineHeight:1.85, margin:0 }}>You're connected 🔒<br />No names. No profiles. Just real.</p>
+            <p style={{ color:MUTED, fontSize:13, lineHeight:1.85, margin:0 }}>You're connected 🔒<br/>No names. No profiles. Just real.</p>
           </div>
         )}
         {messages.map(m => (
@@ -71,11 +145,11 @@ export default function Conversation({ messages, prompt, peerTyping, onSend, onT
         {peerTyping && (
           <div style={{ display:'flex', marginBottom:8 }}>
             <div style={{ background:CARD, padding:'12px 16px', borderRadius:22, display:'flex', gap:5, alignItems:'center' }}>
-              <div className="dot" /><div className="dot" style={{ animationDelay:'0.15s' }} /><div className="dot" style={{ animationDelay:'0.3s' }} />
+              <div className="dot"/><div className="dot" style={{ animationDelay:'0.15s' }}/><div className="dot" style={{ animationDelay:'0.3s' }}/>
             </div>
           </div>
         )}
-        <div ref={endRef} />
+        <div ref={endRef}/>
       </div>
 
       {/* Input */}
@@ -85,12 +159,12 @@ export default function Conversation({ messages, prompt, peerTyping, onSend, onT
           onChange={e => { setInput(e.target.value); onTyping(); }}
           onKeyDown={e => e.key === 'Enter' && !e.shiftKey && send()}
           placeholder="Say something..."
-          style={{ flex:1, background:CARD, color:TEXT, border:'none', borderRadius:22, padding:'12px 18px', fontSize:15 }}
+          style={{ flex:1, background:CARD, color:TEXT, border:'none', borderRadius:22, padding:'12px 18px', fontSize:15, fontFamily:'inherit' }}
         />
-        <button onClick={send} disabled={!input.trim()} style={{ width:44, height:44, borderRadius:'50%', background: input.trim() ? ACCENT : 'rgba(244,162,97,0.14)', border:'none', color:BG, fontSize:20, fontWeight:700, display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0, transition:'background 0.15s' }}>↑</button>
+        <button onClick={send} disabled={!input.trim()} style={{ width:44, height:44, borderRadius:'50%', background: input.trim() ? ACCENT : 'rgba(244,162,97,0.14)', border:'none', color:BG, fontSize:20, fontWeight:700, display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0, transition:'background 0.15s', cursor: input.trim() ? 'pointer' : 'default' }}>↑</button>
       </div>
       <div style={{ textAlign:'center', padding:'6px 0 14px' }}>
-        <button onClick={onLeave} style={{ background:'none', border:'none', color:'rgba(245,240,232,0.22)', fontSize:12 }}>End session</button>
+        <button onClick={onLeave} style={{ background:'none', border:'none', color:'rgba(245,240,232,0.22)', fontSize:12, cursor:'pointer' }}>End session</button>
       </div>
     </div>
   );
