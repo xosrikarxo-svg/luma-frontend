@@ -338,7 +338,7 @@ export function useFirebase(onMessage) {
       });
 
       // Watch for a response
-      const unsubReq = onSnapshot(reqRef, snap => {
+      const unsubReq = onSnapshot(reqRef, async snap => {
         if (!snap.exists()) return;
         const status = snap.data().status;
         if (status === 'declined') {
