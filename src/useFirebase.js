@@ -348,6 +348,30 @@ export function useFirebase(onMessage) {
         }
         if (status === 'accepted') {
           unsubReq();
+
+          // Find the new session where we are userB (created by the accepter)
+          const sessQ = query(
+            collection(db, 'sessions'),
+            where('userB', '==', userId),
+            where('status', '==', 'active'),
+          );
+          const sessSnap = await getDocs(sessQ);
+          if (sessSnap.empty) return;
+
+          const sessDoc  = sessSnap.docs[0];
+          const sessData = sessDoc.data();
+
+          cleanupSubs();
+          sessionIdRef.current   = sessDoc.id;
+          myRoleRef.current      = 'B';
+          peerUserIdRef.current  = sessData.userA;
+          seenPeerKeyRef.current = false;
+          seenMsgIdsRef.current  = new Set();
+          prevSessionRef.current = sessData;
+
+          onMessageRef.current({ type: 'matched', prompt: sessData.prompt });
+          listenToSession(sessDoc.id);
+          deleteDoc(reqRef).catch(() => {});
         }
       });
       unsubsRef.current.push(unsubReq);
