@@ -349,20 +349,16 @@ export function useFirebase(onMessage) {
         if (status === 'accepted') {
           unsubReq();
 
-          // Find the new session where we are userB (created by the accepter)
-          const sessQ = query(
-            collection(db, 'sessions'),
-            where('userB', '==', userId),
-            where('status', '==', 'active'),
-          );
-          const sessSnap = await getDocs(sessQ);
-          if (sessSnap.empty) return;
+          // Read the session ID directly from the reconnect doc — no querying
+          const newSessionId = snap.data().newSessionId;
+          if (!newSessionId) return;
 
-          const sessDoc  = sessSnap.docs[0];
-          const sessData = sessDoc.data();
+          const sessSnap = await getDoc(doc(db, 'sessions', newSessionId));
+          if (!sessSnap.exists()) return;
+          const sessData = sessSnap.data();
 
           cleanupSubs();
-          sessionIdRef.current   = sessDoc.id;
+          sessionIdRef.current   = newSessionId;
           myRoleRef.current      = 'B';
           peerUserIdRef.current  = sessData.userA;
           seenPeerKeyRef.current = false;
@@ -370,7 +366,7 @@ export function useFirebase(onMessage) {
           prevSessionRef.current = sessData;
 
           onMessageRef.current({ type: 'matched', prompt: sessData.prompt });
-          listenToSession(sessDoc.id);
+          listenToSession(newSessionId);
           deleteDoc(reqRef).catch(() => {});
         }
       });
@@ -395,9 +391,8 @@ export function useFirebase(onMessage) {
       if (snap.empty) return;
 
       const reqDoc = snap.docs[0];
-      await updateDoc(reqDoc.ref, { status: 'accepted' });
 
-      // Create a fresh session for both parties
+      // Create fresh session FIRST so the ID exists before we notify user1
       const newSessionId = genId();
       const prompt       = randPrompt();
       await setDoc(doc(db, 'sessions', newSessionId), {
@@ -409,6 +404,10 @@ export function useFirebase(onMessage) {
         status:     'active',
         createdAt:  serverTimestamp(),
       });
+
+      // Write newSessionId into the reconnect doc THEN mark accepted
+      // User1 reads the session ID directly — no ambiguous querying
+      await updateDoc(reqDoc.ref, { status: 'accepted', newSessionId });
 
       cleanupSubs();
       sessionIdRef.current   = newSessionId;
