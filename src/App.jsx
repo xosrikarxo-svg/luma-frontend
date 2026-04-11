@@ -1,5 +1,5 @@
 import React, { useState, useRef, useCallback, useEffect } from 'react';
-import { useSocket } from './useSocket';
+import { useFirebase } from './useFirebase';   // ← was: import { useSocket } from './useSocket'
 import { generateKeyPair, exportPublicKey, importPublicKey, deriveSharedKey, encryptMessage, decryptMessage } from './crypto';
 import Onboarding from './screens/Onboarding';
 import Mood from './screens/Mood';
@@ -48,7 +48,7 @@ export default function App() {
         const kp = await generateKeyPair();
         keyPairRef.current = kp;
         const pubKey = await exportPublicKey(kp);
-        // send via socket after small delay to ensure conversation screen is mounted
+        // small delay to ensure conversation screen is mounted
         setTimeout(() => {
           sendRef.current({ type: 'public_key', publicKey: pubKey });
         }, 200);
@@ -56,7 +56,6 @@ export default function App() {
     }
 
     if (msg.type === 'peer_public_key') {
-      // Derive shared key from peer's public key
       try {
         const peerPubKey = await importPublicKey(msg.publicKey);
         const shared = await deriveSharedKey(keyPairRef.current, peerPubKey);
@@ -67,7 +66,6 @@ export default function App() {
 
     if (msg.type === 'message') {
       let text = msg.text;
-      // Decrypt if we have a shared key
       if (sharedKeyRef.current) {
         try { text = await decryptMessage(sharedKeyRef.current, msg.text); } catch(e) { console.warn('Decrypt failed:', e); }
       }
@@ -108,7 +106,7 @@ export default function App() {
     if (msg.type === 'reconnect_declined') setReconnectState('declined');
   }, []);
 
-  const { send, connected } = useSocket(handleMessage);
+  const { send, connected } = useFirebase(handleMessage);   // ← was: useSocket
   const sendRef = useRef(send);
   sendRef.current = send;
 
@@ -127,7 +125,6 @@ export default function App() {
 
   const handleSend = async (text) => {
     let payload = text;
-    // Wait up to 3s for shared key to be ready
     if (!sharedKeyRef.current) {
       await new Promise(resolve => {
         const check = setInterval(() => {

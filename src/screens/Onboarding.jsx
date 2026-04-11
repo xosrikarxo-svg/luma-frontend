@@ -1,24 +1,26 @@
 import React, { useState, useEffect } from 'react';
+import { db } from '../firebase';
+import { collection, onSnapshot } from 'firebase/firestore';
 
 const BG='#0D1B2A', ACCENT='#F4A261', TEXT='#F5F0E8', MUTED='rgba(245,240,232,0.45)';
 const ALL_TAGS = ['Music','Gaming','Movies','Books','Sports','Art','Tech','Food','Travel','Nature','Fitness','Fashion','Photography','Science','Anime'];
-const API = 'https://lumabackend.up.railway.app';
 
 export default function Onboarding({ onContinue }) {
   const [tags, setTags] = useState([]);
   const [queueCounts, setQueueCounts] = useState({});
 
+  // Real-time waiting pool counts straight from Firestore (replaces the Railway /queue-status poll)
   useEffect(() => {
-    const fetchCounts = async () => {
-      try {
-        const res = await fetch(`${API}/queue-status`);
-        const data = await res.json();
-        setQueueCounts(data);
-      } catch {}
-    };
-    fetchCounts();
-    const interval = setInterval(fetchCounts, 3000);
-    return () => clearInterval(interval);
+    const unsub = onSnapshot(collection(db, 'waiting'), snap => {
+      const counts = {};
+      snap.docs.forEach(doc => {
+        (doc.data().tags || []).forEach(tag => {
+          counts[tag] = (counts[tag] || 0) + 1;
+        });
+      });
+      setQueueCounts(counts);
+    });
+    return () => unsub();
   }, []);
 
   const toggle = (t) => tags.includes(t) ? setTags(tags.filter(x => x !== t)) : tags.length < 3 && setTags([...tags, t]);
@@ -67,13 +69,8 @@ export default function Onboarding({ onContinue }) {
                 transition:'all 0.15s',
                 fontFamily:'inherit',
               }}>
-                {/* Green dot if people waiting, gray dot if not */}
                 <span style={{
-                  width:7,
-                  height:7,
-                  borderRadius:'50%',
-                  flexShrink:0,
-                  display:'inline-block',
+                  width:7, height:7, borderRadius:'50%', flexShrink:0, display:'inline-block',
                   background: hasWaiting ? '#2ed573' : 'rgba(245,240,232,0.2)',
                   boxShadow: hasWaiting ? '0 0 5px #2ed573' : 'none',
                   transition:'all 0.3s',
@@ -81,17 +78,12 @@ export default function Onboarding({ onContinue }) {
 
                 {t}
 
-                {/* Count badge */}
                 {count > 0 && (
                   <span style={{
-                    fontSize:11,
-                    fontWeight:700,
+                    fontSize:11, fontWeight:700,
                     color: sel ? 'rgba(13,27,42,0.65)' : '#2ed573',
                     background: sel ? 'rgba(13,27,42,0.15)' : 'rgba(46,213,115,0.12)',
-                    padding:'1px 7px',
-                    borderRadius:9999,
-                    lineHeight:'18px',
-                    marginLeft:2,
+                    padding:'1px 7px', borderRadius:9999, lineHeight:'18px', marginLeft:2,
                   }}>{count}</span>
                 )}
               </button>
